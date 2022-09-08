@@ -1,0 +1,76 @@
+---
+# Examples of using firewalld to emulate iptables stuff for hardening
+- hosts: all
+  become: true
+  become_user: root
+  become_method: sudo
+  gather_facts: false
+  vars:
+    - ansible_python_interpreter: /usr/bin/python3
+
+  tasks:
+    - name: BLOCK - Configure default drop policy
+      block:
+        - name: Get active zone info
+          ansible.posix.firewalld_info:
+            active_zones: yes
+          register: active_zones_reg
+        - debug:
+            msg: "Default firewalld zone is {{ active_zones_reg.firewalld_info.default_zone }}"
+        - name: Bind loopback interface to active zone
+          ansible.posix.firewalld:
+            zone: "{{ active_zones_reg.firewalld_info.default_zone }}"
+            interface: lo
+            state: enabled
+            immediate: yes
+            permanent: yes
+        - name: Ensure ssh is enabled
+          shell: firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT 0 -p tcp --dport=22 -j ACCEPT
+          args:
+            warn: false
+        # Prevent this session from getitng locked out
+        - name: Maintain established connections
+          shell: firewall-cmd --permanent --direct --add-rule ipv4 filter "{{ item }}" 0 -m state --state ESTABLISHED,RELATED -j ACCEPT
+          args:
+            warn: false
+          with_items:
+            - INPUT
+            - OUTPUT
+        # Need to reload config to pick up changes (to prevent lockout)
+        - name: Reload firewalld config
+          shell: firewall-cmd --reload
+          args:
+            warn: false
+        # Rules 1,2 and 3 - equivalent to 'iptables -P <CHAIN> DROP'
+        - name: Set input policy to drop
+          iptables:
+            policy: DROP
+            chain: "{{ item }}"
+          with_items:
+            - INPUT
+            - FORWARD
+            - OUTPUT
+
+    - name: BLOCK - Configure loopback interface
+      block:
+        # Rule 4 - equivalent to 'iptables -A INPUT -i lo -j ACCEPT'
+        - name: Add accept rule for inbound on loopback interface
+          shell: firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT 1 -p tcp -i lo -j ACCEPT
+          args:
+            warn: false
+        # Rule 5 - equivalent to 'iptables -A OUTPUT -i lo -j ACCEPT
+        - name: Add accept rule for outbound from loopback interface
+          shell: firewall-cmd --permanent --direct --add-rule ipv4 filter OUTPUT 1 -p tcp -o lo -j ACCEPT
+          args:
+            warn: false
+        # Rule 6 - equivalent to 'iptables -A INPUT -s 127.0.0.0/8 -j DROP'
+        - name: Drop all inbound traffic from source network 127.0.0.0/8
+          shell: firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT 2 -s 127.0.0.0/8 -j DROP
+        - name: Persist iptables based changes
+          shell: iptables-save
+          args:
+            warn: false
+        - name: Reload firewalld config
+          shell: firewall-cmd --reload
+          args:
+            warn: false
