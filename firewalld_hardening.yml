@@ -28,7 +28,7 @@
           shell: firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT 0 -p tcp --dport=22 -j ACCEPT
           args:
             warn: false
-        # Prevent this session from getitng locked out
+        # Prevent this session from getting locked out
         - name: Maintain established connections
           shell: firewall-cmd --permanent --direct --add-rule ipv4 filter "{{ item }}" 0 -m state --state ESTABLISHED,RELATED -j ACCEPT
           args:
@@ -36,7 +36,7 @@
           with_items:
             - INPUT
             - OUTPUT
-        # Need to reload config to pick up changes (to prevent lockout)
+        # Need to reload config to pick up changes to prevent lockout
         - name: Reload firewalld config
           shell: firewall-cmd --reload
           args:
