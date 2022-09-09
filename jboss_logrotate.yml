@@ -1,0 +1,57 @@
+---
+# Set up logrotate for JBoss logs
+- hosts: all
+  become: true
+  become_user: root
+  become_method: sudo
+  gather_facts: true
+  vars:
+    - logrotate_dir: /etc/logrotate.d
+    - logrotate_conf: /etc/logrotate.conf
+
+  tasks:
+    # This check sometimes fails in error
+    - name: Check JBoss is installed
+      service_facts:
+    - set_fact:
+        jboss_present: ansible_facts.services['jbossas'].name
+    # Second check in the event check 1 fails in error
+    - name: Check JBoss via chkconfig
+      shell: /sbin/chkconfig | grep jbossas | awk '{print $1}'
+      register: chkconfig_out
+      when: jboss_present|bool == false
+    - set_fact:
+         jboss_present: true
+      when: chkconfig_out.stdout_lines is search('jbossas')
+    - name: Integrate JBoss with logrotate block start
+      block:
+        - debug:
+            msg: "Found JBoss service"
+        - name: Create logrotate config file
+          # Rotate daily, add datestamp extension, compress, retain last 10 logs
+          blockinfile:
+            path: "{{ logrotate_dir }}/jbossas"
+            block: |
+              /var/log/jbossas/*/*log
+              {
+                daily
+                dateext
+                missingok
+                compress
+                rotate 10
+              }
+            owner: root
+            group: root
+            mode: 0644
+            create: true
+
+        - name: Restart logrotate
+          shell: /usr/sbin/logrotate -f "{{ logrotate_conf }}"
+
+      when:
+        - jboss_present|bool
+    - name: No JBoss service found
+      debug:
+        msg: "No JBoss service found, exiting"
+      when: jboss_present|bool == false
+      
