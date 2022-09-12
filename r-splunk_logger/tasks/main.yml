@@ -1,0 +1,43 @@
+---
+- include_tasks: gather_host_facts.yml
+
+- name: Ensure /etc/rsyslog.d is present
+  file:
+    path: /etc/rsyslog.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Check for syslog config
+  stat:
+    path: /etc/rsyslog.d/00_client.conf
+  register: rsyslog_conf_reg
+  tags: config_check
+
+- name: Add rsyslog conf file if missing
+  copy:
+    src: 00_client.conf
+    dest: /etc/rsyslog.d/00_client.conf
+    owner: root
+    mode: '0600'
+  when: rsyslog_conf_reg.stat.exists|bool == false
+  notify: restart_rsyslog
+  become: true
+  tags: config_check
+
+- name: Format message file
+  template:
+    src: "{{ message_template }}"
+    dest: "{{ message_file }}"
+
+- name: Send message to Splunk
+  shell: /usr/bin/logger -t "{{ ansible_hostname }}" -f "{{ message_file }}"
+  args:
+    warn: false
+
+- name: Delete message file
+  file:
+    path: "{{ message_file }}"
+    state: absent
