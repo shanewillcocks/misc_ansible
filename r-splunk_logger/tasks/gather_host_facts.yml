@@ -1,0 +1,9 @@
+---
+- name: Gather some node facts
+  setup:
+    gather_subset:
+      - '!all'
+      - default_ipv4
+      - os_family
+      - distribution_version
+      - date_time
