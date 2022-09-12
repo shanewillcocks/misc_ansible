@@ -12,14 +12,14 @@
 
 - name: Check for syslog config
   stat:
-    path: /etc/rsyslog.d/00_client.conf
+    path: /etc/rsyslog.d/splunk_client.conf
   register: rsyslog_conf_reg
   tags: config_check
 
 - name: Add rsyslog conf file if missing
   copy:
     src: 00_client.conf
-    dest: /etc/rsyslog.d/00_client.conf
+    dest: /etc/rsyslog.d/splunk_client.conf
     owner: root
     mode: '0600'
   when: rsyslog_conf_reg.stat.exists|bool == false
