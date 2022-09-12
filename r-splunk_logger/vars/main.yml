@@ -1,0 +1,7 @@
+---
+message_template: message_template.j2
+message_file: "/tmp/{{ ansible_hostname }}_splunk_message.json"
+logger_action: "{{ action | default('patching') }}"
+logger_state: "{{ state | default('unspecified') }}"
+version: "0.0.1"
+logger_provider: "{{ provider | default('ansible') }}"
