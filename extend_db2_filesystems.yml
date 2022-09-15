@@ -1,0 +1,77 @@
+---
+# Extend LVM volumes for DB2 data and archive logs
+# /dev/mapper/vg_data_01-db2instp_archivelogs_vol mount on /db2fs/db2_archivelogs - add 25GB
+# /dev/mapper/vg_data_01-db2instp_data_vol mounted on /db2fs/db2_data - add 100GB
+
+- hosts: all
+  become: true
+  become_user: root
+  become_method: sudo
+  gather_facts: false
+  vars:
+    - lvol_data_dev: /dev/mapper/vg_data_01-db2instp_data_vol
+    - lvol_archivelogs_dev: /dev/mapper/vg_data_01-db2instp_archivelogs_vol
+    - lvol_data: db2instp_data_vol
+    - lvol_archivelogs: db2instp_archivelogs_vol
+    - vol_grp: vg_data_01
+    - data_fs: db2_data
+    - archivelogs_fs: db2_archivelogs
+    - data_vol_size: 260g
+    - archivelogs_vol_size: 75g
+
+  vars_prompt:
+    - name: extend_volumes
+      prompt: "This will extend logical volumes on the {{ vol_grp }} volume group. Proceed (yes/no)?:"
+      default: no
+      private: false
+
+  tasks:
+  - name: Extend logical volumes
+    block:
+      - name: "Step 1: Backup lvm configuration"
+        shell: vgcfgbackup -f /tmp/vg_data_01.bak "{{ vol_grp }}"
+        args:
+          warn: false
+        register: vg_backup
+      - name: "Check backup success"
+        debug:
+          msg: "Backup OK"
+        when: vg_backup is search('successfully')
+
+      - name: "Step 2: Expand DB2 data volume by {{ data_vol_size }}"
+        lvol:
+          vg: "{{ vol_group }}"
+          lv: "{{ lvol_data }}"
+          size: "{{ data_vol_size }}"
+
+      - name: "Step 3: Expand DB2 archive logs volume by {{ archivelogs_vol_size }}"
+        lvol:
+          vg: "{{ vol_grp }}"
+          lv: "{{ lvol_archivelogs }}"
+          size: "{{ archivelogs_vol_size }}"
+
+      - name: "Step 4: Extend data volume filesystem"
+        filesystem:
+          fstype: ext4
+          resizefs: true
+          dev: "{{ lvol_data_dev }}"
+
+      - name: "Step 5: Extend archive logs volume filesystem"
+        filesystem:
+          fstype: ext4
+          resizefs: true
+          dev: "{{ lvol_archivelogs_dev }}"
+
+      - name: "Step 6: Get new filesystem sizes"
+        shell: df -h "/db2fs/{{ item }}"
+        args:
+          warn: false
+        register: df_out
+        loop:
+          - "{{ data_fs }}"
+          - "{{ archivelogs_fs }}"
+      - name: Output df results
+        debug:
+          msg: "{{ item.stdout_lines }}"
+        loop: "{{ df_out.results }}"
+    when: extend_volumes|bool
