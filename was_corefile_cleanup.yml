@@ -1,0 +1,63 @@
+---
+# Find and delete WebSphere core, snap and heapdump files
+# extra_vars:
+#   delete=yes to delete files
+#   age=<days|weeks> to specify age to delete e.g: 14d
+
+- hosts: all
+  become: true
+  become_user: root
+  become_method: sudo
+  gather_facts: false
+  vars:
+    - delete_files: "{{ delete | default('yes') }}"
+    - delete_age: "{{ age | default('1d') }}"
+    - was_base: /opt/IBM/WebSphere/AppServer/profiles
+    - was_file_list: []
+
+  tasks:
+    - name: Find WAS core dump related files over {{ delete_age }}
+      find:
+        paths: "{{ was_base }}"
+        recurse: yes
+        file_type: file
+        age: "{{ delete_age }}"
+        patterns:
+          - 'core.*.dmp'
+          - 'Snap.*.trc'
+          - 'heapdump.*.phd'
+          - 'javacore.*.txt'
+      register: was_dump_files
+
+    - name: BLOCK - dump files found
+      block:
+        - debug:
+            msg: "Found {{ was_dump_files.matched }} WebSphere dump files"
+
+        - name: Setting fact for found files
+          set_fact:
+            was_file_list: "{{ was_file_list + [item.path] }}"
+          with_items: "{{ was_dump_files.files }}"
+
+        - name: Output was_file_list
+          debug:
+            msg: "File: {{ item }}"
+          with_list: "{{ was_file_list }}"
+
+        - name: Deleting WAS dump files
+          file:
+            path: "{{ item }}"
+            state: absent
+          with_items: "{{ was_file_list }}"
+          when: delete_files|bool
+
+        - name: Cancel delete
+          debug:
+            msg: "No files will be deleted, exiting"
+          when: delete_files|bool == false
+      when: was_dump_files.files != []
+    - name: No WAS files found for deletion
+      debug:
+        msg: "No WebSphere dump files found, exiting"
+      when: was_dump_files.files == []
+      
