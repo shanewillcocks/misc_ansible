@@ -1,0 +1,25 @@
+---
+# Search CMDBuild for server by _id value
+- import_playbook: cmdbuild_auth.yml
+
+- hosts: all
+  become: false
+  gather_facts: true
+  vars_files:
+    - vars/main.myl
+  tasks:
+    - name: "Query CMDB for host ID {{ host_id }}"
+      uri:
+        url: "{{ cmdb_base_url }}/classes/{{ server_class }}/cards/{{ host_id }}"
+        timeout: 30
+        method: GET
+        headers:
+          Content-type: application/json
+          Accept: '*/*'
+          CMDBuild-Authorization: "{{ session_id }}"
+        status_code: 200
+      register: get_host_by_id_reg
+
+    - name: Output match results
+      debug:
+        msg: "Matched ID {{ host_id }} to hostname {{ get_host_by_id_reg.json.data.Hostname }}"
