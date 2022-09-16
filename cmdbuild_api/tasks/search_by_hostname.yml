@@ -1,0 +1,20 @@
+---
+# Search CMDBuild for server by hostname and return id value
+- import_playbook: cmdbuild_auth.yml
+
+- name: "Query CMDBuild for {{ ansible_hostname }}"
+  uri:
+    url: "{{ cmdb_base_url }}/classes/{{ server_class }}/cards?{{ ans_filter_str }}"
+    timeout: 30
+    method: GET
+    headers:
+      Content-type: application/json
+      Accept: '*/*'
+      CMDBuild-Authorization: "{{ session_id }}"
+    status_code: 200
+  register: get_host_by_hostname_reg
+- name: Parse ID
+  set_fact:
+    host_id: "{{ get_host_by_hostname_reg.json.data[0]._id }}"
+- debug:
+    msg: "ID returned for {{ ansible_hostname }}: {{ get_host_by_hostname_reg.json.data[0]._id }}"
