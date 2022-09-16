@@ -1,0 +1,17 @@
+---
+server_class: machine
+cmdb_base_url: http://cmdbuild.server.com:8080/cmdbuild/services/rest/v2
+ans_filter_str: "filter=%7B%22attribute%22%3A%20%7B%22simple%22%3A%20%7B%22operator%22%3A%20%22equal%22%2C%20%22attribute%22%3A%20%22Hostname%22%2C%20%22value%22%3A%20%5B%22{{ansible_hostname|urlencode}}%22%5D%7D%7D%7D"
+inv_filter_str: "filter=%7B%22attribute%22%3A%20%7B%22simple%22%3A%20%7B%22operator%22%3A%20%22equal%22%2C%20%22attribute%22%3A%20%22Hostname%22%2C%20%22value%22%3A%20%5B%22{{inventory_hostname|urlencode}}%22%5D%7D%7D%7D"
+os_filter_str: "filter=%7B%22attribute%22%3A%20%7B%22simple%22%3A%20%7B%22operator%22%3A%20%22contain%22%2C%20%22attribute%22%3A%20%22OS%22%2C%20%22value%22%3A%20%5B%22{{OS|urlencode}}%22%5D%7D%7D%7D"
+# Update these variables as required for updating CMDBuild attributes
+# You can add / remove entries here corresponding to the attributes available in CMDBuild
+# Add / update the corresponding entry in the body of the Ansible uri task
+
+owner:          "replace"
+contact:        "replace"
+comment:        "replace"
+description:    "replace"
+os:             "replace"
+patching_owner: "replace"
+patching_proc:  "replace"
