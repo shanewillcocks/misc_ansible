@@ -1,0 +1,29 @@
+# Update CMDBuild data for a server via Ansible facts
+- import_playbook: cmdbuild_auth.yml
+- import_playbook: noauth_search.yml
+
+- hosts: all
+  become: false
+  vars_files:
+    - vars/main.yml
+  tasks:
+    - name: Update server card
+      uri:
+        url: "{{ cmdb_base_url }}/classes/{{ server_class }}/cards/{{ host_id }}"
+        timeout: 30
+        method: PUT
+        headers:
+          Content-type: application/json
+          Accept: '*/*'
+          CMDBuild-Authorization: "{{ session_id }}"
+        body_format: json
+        body:
+          OS: "{{ ansible_distribution }}: {{ ansible_distribution_version }}"
+          Provider: "{{ ansible_virtualization_type }}"
+          Kernel_Version: "{{ ansible_kernel }}"
+          System_UptimeV2: "{{ ( ( ansible_uptime_seconds / 60 ) / 60 ) / 24 }}"
+          last_cmdb_update: "{{ ansible_date_time.date }}"
+        status_code: 200
+      register: update_host_card_reg
+    - debug:
+        msg: "{{ update_host_card_reg }}"
