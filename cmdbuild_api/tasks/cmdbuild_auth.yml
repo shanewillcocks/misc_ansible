@@ -1,0 +1,39 @@
+---
+# Authenticate and get session id
+- hosts: all
+  become: false
+  gather_facts: false
+  vars_files:
+    - files/cmdbuild_api_vars.txt
+  vars_prompt:
+    - name: cmdb_user
+      prompt: "Enter CMDBuild username"
+      private: false
+      default: admin
+
+    - name: cmdb_passwd
+      prompt: "Enter CMDBuild password"
+      private: true
+
+  tasks:
+    - name: Get CMDBuild session token
+      uri:
+        timeout: 30
+        method: POST
+        url: "{{ cmdb_base_url }}/sessions"
+        headers:
+          Content-type: application/json
+          Accept: '*/*'
+        body_format: json
+        body:
+          username: "{{ cmdb_user }}"
+          password: "{{ cmdb_passwd }}"
+        status_code: 200
+      register: cmdb_sessionid
+      run_once: true
+      delegate_to: localhost
+    - name: Parsing session token
+      set_fact:
+        session_id: "{{ cmdb_sessionid.json.data._id }}"
+      run_once: true
+      delegate_to: localhost
