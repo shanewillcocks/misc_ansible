@@ -1,0 +1,55 @@
+---
+# Update CMDBuild with Puppet service info
+- import_playbook: cmdbuild_auth.yml
+
+- hosts: all
+  become: false
+  vars_files:
+    - cmdbuild_vars.yml
+    
+  tasks:
+    - service_facts:
+    - name: Begin CMDBuild update block
+      block:
+        - name: Query CMDBuild for server info
+          uri:
+            url: "{{ cmdb_base_url }}/classes/{{ server_class }}/cards?{{ ans_filter_str }}"
+            timeout: 30
+            method: GET
+            headers:
+              Content-type: application/json
+              Accept: '*/*'
+              CMDBuild-Authorization: "{{ session_id }}"
+            status_code: 200
+          register: get_host_by_hostname_reg
+        - name: Parsing response from CMDBuild
+          set_fact:
+            host_id: "{{ get_host_by_hostname_reg.json.data[0]._id }}"
+
+        - set_fact:
+            comment: "Puppet is {{ ansible_facts.services['puppet.service'].status }} and {{ ansible_facts.services['puppet.service'].state }}"
+          when: ansible_facts['distribution_major_version'] is version( '7', '==' )
+        - set_fact:
+            comment: "Puppet is {{ ansible_facts.services['puppet'].status }} and {{ ansible_facts.services['puppet'].state }}"
+          when: ansible_facts['distribution_major_version'] is version( '6', '==' )
+        - name: Append to existing comment if found
+          set_fact:
+            comment: "{{ get_host_by_hostname_reg.json.data[0].Comments }}\n{{ comment }}"
+          when: get_host_by_hostname_reg.json.data[0].Comments
+
+        - name: Update server card with Puppet service info
+          uri:
+            url: "{{ cmdb_base_url }}/classes/{{ server_class }}/cards/{{ host_id }}"
+            timeout: 30
+            method: PUT
+            headers:
+              Content-type: application/json
+              Accept: '*/*'
+              CMDBuild-Authorization: "{{ session_id }}"
+            body_format: json
+            body:
+              Comments: "{{ comment }}"
+              last_cmdb_update: "{{ ansible_date_time.date }}"
+            status_code: 200
+      when: ansible_facts.services is search('puppet')
+      
