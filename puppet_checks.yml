@@ -62,6 +62,10 @@
                   "{{ group_names }},{{ inventory_hostname }},RHEL {{ ansible_facts['distribution_version'] }},
                    {{ puppet_svc_status }} and {{ puppet_svc_state }},{{ noop_reg.stdout }},{{ puppet_cert_expired }}"
           when: puppet_svc_facts_reg is search('puppet')
+        - name: Log when Puppet service is not found
+          debug:
+            msg: "Puppet service not found for {{ ansible_hostname }}"
+          when: puppet_svc_facts_reg is not search('puppet') 
       when: ansible_facts['distribution_major_version'] is version( '6', '==')
     - name: BLOCK - Actions for RHEL7
       block:
@@ -109,4 +113,8 @@
                   "{{ group_names }},{{ inventory_hostname }},RHEL {{ ansible_facts['distribution_version'] }},
                    {{ puppet_svc_status }} and {{ puppet_svc_state }},{{ noop_reg.stdout }},{{ puppet_cert_expired }}"
           when: puppet_svc_facts_reg is search('puppet.service')
+        - name: Log when Puppet service is not found
+          debug: 
+            msg: "Puppet service not found for {{ ansible_hostname }}"
+          when: puppet_svc_facts_reg is not search('puppet.service')  
       when: ansible_facts['distribution_major_version'] is version( '7', '==')
