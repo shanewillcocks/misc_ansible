@@ -1,0 +1,36 @@
+---
+- name: Extract cert password
+  shell: /usr/bin/echo "cat //SecurityStorePassword/text()" | xmllint --nocdata --shell "{{ response_file }}" | grep -v "/ >  -------" | grep -v "/ >"
+  args:
+    warn: false
+  register: pwd_reg
+
+- name: Extract and save Base64 encoded certificate
+  shell: /usr/bin/echo "cat //SecurityStore/text()" | /usr/bin/xmllint --nocdata --shell "{{ response_file }}" | grep -v "/ >  -------" | grep -v "/ >" > "{{ b64_cert_file }}"
+  args:
+    warn: false
+
+- name: Decode Base64 and save cert in PKCS12 format
+  shell: /usr/bin/cat "{{ b64_cert_file }}" | /usr/bin/base64 --decode 2> nul > "{{ p12_cert_file }}"
+  args:
+    warn: false
+
+- name: Create PEM format cert
+  shell: /usr/bin/openssl pkcs12 -in "{{ p12_cert_file }}" -passin pass:"{{ pwd_reg.stdout }}" -out "{{ pem_cert_file }}" -nodes
+  args:
+    warn: false
+
+- name: Create cert file from PKCS12
+  shell: /usr/bin/openssl pkcs12 -in "{{ p12_cert_file }}" -passin pass:"{{ pwd_reg.stdout }}" -out "{{ cer_cert_file }}" -nokeys
+  args:
+    warn: false
+
+- name: Create public key from cert file
+  shell: /usr/bin/cat "{{ cer_cert_file }}" | /usr/bin/sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > "{{ pub_cert_file }}"
+  args:
+    warn: false
+
+- name: Create private key from cert file
+  shell: /usr/bin/cat "{{ pem_cert_file }}" | /usr/bin/sed -ne '/-BEGIN PRIVATE KEY-/,/-END PRIVATE KEY-/p' > "{{ priv_cert_file }}"
+  args:
+    warn: false
