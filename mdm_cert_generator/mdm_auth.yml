@@ -1,0 +1,27 @@
+---
+- name: Generate login request xml file
+  template:
+    src: "{{ login_req_template }}"
+    dest: "{{ login_req_file }}"
+
+- name: Send login request to MDM
+  uri:
+    url: "{{ entrust_api_url }}"
+    method: POST
+    body_format: raw
+    headers:
+      Content-Type: 'text/xml;charset=UTF-8'
+    return_content: true
+    validate_certs: false
+    src: "{{ login_req_file }}"
+  register: login_response_reg
+
+# Not necessary to save the cookie as it can be read from login_response_reg.cookes_string - remove this?
+- name: Save session cookie and login response to file
+  block:
+    - copy:
+        content: "{{ login_response_reg.set_cookie }}"
+        dest: "{{ cookie_file }}"
+    - copy:
+        content: "{{ login_response_reg.content }}"
+        dest: "{{ login_response_file }}"
