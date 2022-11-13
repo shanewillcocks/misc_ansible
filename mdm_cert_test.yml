@@ -1,0 +1,144 @@
+---
+- hosts: all
+  become: yes
+  gather_facts: yes
+  vars:
+    - tmp_drop_folder: /tmp/mdm_certs
+    - entrust_api_url: https://pki-adminservices-test.com:19443/mdmws/services/AdminServiceV9
+    - response_file: "{{ tmp_drop_folder }}/cert_response.xml"
+    - password_file: "{{ tmp_drop_folder }}/password.txt"
+    - login_req_template: files/login_req_template.j2
+    - cert_req_template: files/cert_req_template.j2
+    - login_req_file: "{{ tmp_drop_folder }}/login_request.xml"
+    - cert_req_file: "{{ tmp_drop_folder }}/cert_request.xml"
+    - login_response_file: "{{ tmp_drop_folder }}/loginresponse.xml"
+    - cookie_file: "{{ tmp_drop_folder }}/cookie.txt"
+  vars_prompt:
+    - name: mdm_id
+      prompt: "MDM admin user"
+      private: no
+      default: MDMAdmin
+    - name: mdm_pwd
+      prompt: "MDM admin user password"
+      private: yes
+    - name: mdm_config_id
+      prompt: "MDM digital ID"
+      default: digidtest
+  tasks:
+    - name: Configure cert details
+      set_fact:
+        b64_cert_file: "{{ tmp_drop_folder }}/{{ ansible_hostname }}.b64"
+        p12_cert_file: "{{ tmp_drop_folder }}/{{ ansible_hostname }}.p12"
+        pem_cert_file: "{{ tmp_drop_folder }}/{{ ansible_hostname }}.pem"
+        cer_cert_file: "{{ tmp_drop_folder }}/{{ ansible_hostname }}.cert"
+        pub_cert_file: "{{ tmp_drop_folder }}/{{ ansible_hostname }}_pub_cert.cert"
+        priv_cert_file: "{{ tmp_drop_folder }}/{{ ansible_hostname }}_priv_cert.key"
+        cert_fqdn: "{{ ansible_fqdn }}"
+        cert_shortname: "{{ ansible_hostname }}"
+        cert_ip_addr: "{{ ansible_default_ipv4.address }}"
+
+    - name: Configure drop folder on target host
+      block:
+        - stat:
+            path: "{{ tmp_drop_folder }}"
+          register: stat_reg
+        - file:
+            path: "{{ tmp_drop_folder }}"
+            state: directory
+            mode: '0755'
+          when: stat_reg.stat.exists|bool == false
+        - shell: /usr/bin/rm -rf "{{ tmp_drop_folder }}/*"
+          args:
+            warn: false
+          when: stat_reg.stat.exists
+
+    - name: Generate login request xml file
+      template:
+        src: "{{ login_req_template }}"
+        dest: "{{ login_req_file }}"
+
+    - name: Generate certificate request xml file
+      template:
+        src: "{{ cert_req_template }}"
+        dest: "{{ cert_req_file }}"
+
+    - name: Send login request to MDM
+      uri:
+        url: "{{ entrust_api_url }}"
+        method: POST
+        body_format: raw
+        headers:
+          Content-Type: 'text/xml;charset=UTF-8'
+        return_content: true
+        validate_certs: false
+        src: "{{ login_req_file }}"
+      register: login_response_reg
+      delegate_to: localhost
+      run_once: true
+    - debug:
+        var: login_response_reg
+    # It is not necessary to save the cookie as it can be read from login_response_reg.cookes_string
+    - name: Save session cookie and login response to file
+      block:
+        - copy:
+            content: "{{ login_response_reg.set_cookie }}"
+            dest: "{{ cookie_file }}"
+        - copy:
+            content: "{{ login_response_reg.content }}"
+            dest: "{{ login_response_file }}"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Send certificate request to MDM
+      uri:
+        url: "{{ entrust_api_url }}"
+        method: POST
+        body_format: raw
+        headers:
+          Content-Type: 'text/xml;charset=UTF-8'
+          Cookie: "{{ login_response_reg.cookies_string }}"
+        return_content: true
+        validate_certs: false
+        src: "{{ cert_req_file }}"
+      register: cert_response_reg
+
+    - name: Save response as xml
+      copy:
+        content: "{{ cert_response_reg.content }}"
+        dest: "{{ response_file }}"
+
+    - name: Extract cert password
+      shell: /usr/bin/echo "cat //SecurityStorePassword/text()" | xmllint --nocdata --shell "{{ response_file }}" | grep -v "/ >  -------" | grep -v "/ >"
+      args:
+        warn: false
+      register: pwd_reg
+
+    - name: Extract and save Base64 encoded certificate
+      shell: /usr/bin/echo "cat //SecurityStore/text()" | /usr/bin/xmllint --nocdata --shell "{{ response_file }}" | grep -v "/ >  -------" | grep -v "/ >" > "{{ b64_cert_file }}"
+      args:
+        warn: false
+
+    - name: Decode Base64 and save cert in PKCS12 format
+      shell: /usr/bin/cat "{{ b64_cert_file }}" | /usr/bin/base64 --decode 2> nul > "{{ p12_cert_file }}"
+      args:
+        warn: false
+
+    - name: Create PEM format cert
+      shell: /usr/bin/openssl pkcs12 -in "{{ p12_cert_file }}" -passin pass:"{{ pwd_reg.stdout }}" -out "{{ pem_cert_file }}" -nodes
+      args:
+        warn: false
+
+    - name: Create cert file from PKCS12
+      shell: /usr/bin/openssl pkcs12 -in "{{ p12_cert_file }}" -passin pass:"{{ pwd_reg.stdout }}" -out "{{ cer_cert_file }}" -nokeys
+      args:
+        warn: false
+
+    - name: Create public key from cert file
+      shell: /usr/bin/cat "{{ cer_cert_file }}" | /usr/bin/sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > "{{ pub_cert_file }}"
+      args:
+        warn: false
+
+    - name: Create private key from cert file
+      shell: /usr/bin/cat "{{ pem_cert_file }}" | /usr/bin/sed -ne '/-BEGIN PRIVATE KEY-/,/-END PRIVATE KEY-/p' > "{{ priv_cert_file }}"
+      args:
+        warn: false
