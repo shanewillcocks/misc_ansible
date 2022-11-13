@@ -1,0 +1,8 @@
+---
+tmp_drop_folder: /tmp/mdm_certs
+entrust_api_url: https://pkiservice.com:19443/mdmws/services/AdminServiceV9
+login_req_template: files/login_req_template.j2
+cert_req_template: files/cert_req_template.j2
+login_req_file: "{{ tmp_drop_folder }}/login_request.xml"
+login_response_file: "{{ tmp_drop_folder }}/loginresponse.xml"
+cookie_file: "{{ tmp_drop_folder }}/cookie.txt"
