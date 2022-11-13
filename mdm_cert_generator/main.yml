@@ -1,0 +1,104 @@
+---
+- hosts: all
+  become: yes
+  gather_facts: yes
+  vars_files:
+    - files/mdm_cert_vars.yml
+  vars_prompt:
+    - name: mdm_id
+      prompt: "MDM admin user"
+      private: no
+      default: MDMAdmin
+    - name: mdm_pwd
+      prompt: "MDM admin user password"
+      private: yes
+    - name: mdm_config_id
+      prompt: "MDM digital ID"
+      default: iac_dig_id
+
+  tasks:
+    - name: Remove controller tmp folder if it exists
+      block:
+        - stat:
+            path: "{{ tmp_drop_folder }}"
+          register: tmp_stat_reg
+        - file:
+            path: "{{ tmp_drop_folder }}"
+            state: absent
+          when: tmp_stat_reg.stat.exists|bool == true
+      delegate_to: localhost
+      run_once: true
+
+    - name: Create controller temp folder for cert related files
+      file:
+        path: "{{ tmp_drop_folder }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      run_once: true
+
+    - name: Authenticate to MDM and store session token
+      include: mdm_auth.yml
+      delegate_to: localhost
+      run_once: true
+
+    - name: Configure tmp folder for target specific cert files
+      file:
+        path: "{{ tmp_drop_folder }}/{{ ansible_hostname }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      register: target_host_dir_reg
+
+    - name: Configure cert details
+      set_fact:
+        cert_req_file: "{{ target_host_dir_reg.path }}/cert_request.xml"
+        response_file: "{{ target_host_dir_reg.path }}/cert_response.xml"
+        password_file: "{{ target_host_dir_reg.path }}/password.txt"
+        b64_cert_file: "{{ target_host_dir_reg.path }}/{{ ansible_hostname }}.b64"
+        p12_cert_file: "{{ target_host_dir_reg.path }}/{{ ansible_hostname }}.p12"
+        pem_cert_file: "{{ target_host_dir_reg.path }}/{{ ansible_hostname }}.pem"
+        cer_cert_file: "{{ target_host_dir_reg.path }}/{{ ansible_hostname }}.cert"
+        pub_cert_file: "{{ target_host_dir_reg.path }}/{{ ansible_hostname }}_pub_cert.cert"
+        priv_cert_file: "{{target_host_dir_reg.path }}/{{ ansible_hostname }}_priv_cert.key"
+        cert_fqdn: "{{ ansible_fqdn }}"
+        cert_shortname: "{{ ansible_hostname }}"
+        cert_ip_addr: "{{ ansible_default_ipv4.address }}"
+
+    - name: Generate certificate request xml file
+      template:
+        src: "{{ cert_req_template }}"
+        dest: "{{ cert_req_file }}"
+      delegate_to: localhost
+
+    - name: Send certificate request to MDM
+      block:
+        - debug:
+            msg: "Sending certificate request to {{ entrust_api_url }} with session cookie: {{ login_response_reg.cookies_string }}"
+        - uri:
+            url: "{{ entrust_api_url }}"
+            method: POST
+            body_format: raw
+            headers:
+              Content-Type: 'text/xml;charset=UTF-8'
+              Cookie: "{{ login_response_reg.cookies_string }}"
+            return_content: true
+            validate_certs: false
+            src: "{{ cert_req_file }}"
+          register: cert_response_reg
+          delegate_to: localhost
+
+    - name: Save response as xml
+      copy:
+        content: "{{ cert_response_reg.content }}"
+        dest: "{{ response_file }}"
+      delegate_to: localhost
+
+    - name: Parse the response file and create target specific cert files
+      include: mdm_generate_host_certs.yml
+      delegate_to: localhost
+
+    - name: Send host certs to target
+      copy:
+        src: "{{ target_host_dir_reg.path }}/"
+        dest: "{{ target_host_dir_reg.path }}/"
