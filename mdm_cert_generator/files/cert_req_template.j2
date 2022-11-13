@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Body>
+    <ns1:loginCallParms xmlns:ns1="urn:entrust.com:ig:adminV9:wsdl">
+      <parms><adminId>{{ mdm_id }}</adminId>
+      <password>{{ mdm_pwd }}</password>
+      <response xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="1"/>
+      <parms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="1"/>
+        <delegateId xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="1"/>
+        <clientCert xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="1"/>
+      </parms>
+    </ns1:loginCallParms>
+  </soapenv:Body>
+</soapenv:Envelope>
+[p781144@lrlwks03 files]$
+[p781144@lrlwks03 files]$
+[p781144@lrlwks03 files]$
+[p781144@lrlwks03 files]$ cat cert_req_template.j2
+<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Body>
+  <ns1:userDigitalIdCreateRecoverCallParms xmlns:ns1="urn:entrust.com:ig:adminV9:wsdl">
+    <userid>{{ cert_fqdn }}</userid>
+    <parms>
+      <DigitalIdConfig>{{ mdm_config_id }}</DigitalIdConfig>
+      <DN xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:nil="1" />
+      <DNVariables>
+        <item>
+          <Name>fqdnservername</Name>
+          <Value>{{ cert_fqdn }}</Value>
+        </item>
+      </DNVariables>
+      <SubjectAltName>
+        <item>
+          <Type>DNSNAME</Type>
+          <Value>{{ cert_fqdn }}</Value>
+        </item>
+        <item>
+          <Type>DNSNAME</Type>
+          <Value>{{ cert_shortname }}</Value>
+        </item>
+        <item>
+          <Type>IP</Type>
+          <Value>{{ cert_ip_addr }}</Value>
+        </item>
+      </SubjectAltName>
+      <CaVariables />
+      <CaDirectoryMode xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:nil="1" />
+      <CreateIfNotExists>true</CreateIfNotExists>
+      <RecoverIfExists>true</RecoverIfExists>
+      <P12LatestKeyOnly>true</P12LatestKeyOnly>
+      <SecurityStoreType>P12</SecurityStoreType>
+      <SecurityStorePassword xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:nil="1" />
+      <P10Requests xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:nil="1" />
+      <ClientType xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:nil="1" />
+      <CertificateLifetime>0</CertificateLifetime>
+      <CertificateExpiryDate xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:nil="1" />
+      <Comment xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:nil="1" />
+    </parms>
+  </ns1:userDigitalIdCreateRecoverCallParms></soapenv:Body>
+</soapenv:Envelope>
