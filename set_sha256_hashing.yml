@@ -1,0 +1,39 @@
+---
+# Modify the default MD5 password hash algorith to SHA256
+# MD5 is enabled by default on RHEL5,6 and 7
+
+- hosts: all
+  become: yes
+  become_user: root
+  become_method: sudo
+  vars:
+    - md5_default: false
+    - sha256_ok: false
+
+  tasks:
+    - name: Ensure MD5 is the current default
+      shell: /usr/sbin/authconfig --test | grep hashing
+      register: authconfig_reg
+    - set_fact:
+        md5_default: true
+      when: authconfig_reg.stdout is search('algorithm is md5')
+    - name: Make sure SHA256 is available
+      shell: /usr/sbin/authconfig --help | grep passalgo
+      register: passalgo_reg
+    - set_fact:
+        sha256_ok: true
+      when: passalgo_reg.stdout is search('sha256')
+
+    - name: Update hash algorithm
+      block:
+        - name: "Set hash algorith to sha256 for {{ ansible_hostname }}"
+          shell: /usr/sbin/authconfig --passalgo=sha256 --update
+          register: has_update_reg
+        - debug:
+            var: has_update_reg.stdout
+      when:
+        - md5_default|bool
+        - sha256_ok|bool
+      rescue:
+        - debug:
+            msg: "Skipping hash algorithm update for {{ ansible_hostname }}"
