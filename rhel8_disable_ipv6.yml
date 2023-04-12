@@ -1,0 +1,68 @@
+---
+# https://access.redhat.com/solutions/8709 - Option 1 to disable IPv6
+- name: Disable IPv6
+  block:
+    - name: Get all interfaces
+      shell: /usr/bin/ls -1 /sys/class/net
+      args:
+        warn: false
+      register: interfaces_reg
+
+    - name: DEBUG: List interfaces excluding loopback
+      debug:
+        msg: "Got interface: {{ item }}"
+      when: item is not match('lo')
+      with_items: "{{ interfaces_reg.stdout_lines }}"
+
+    - name: Step 1. Create ipv6.conf file
+      copy:
+        dest: /etc/sysctl.d/ipv6.conf
+        owner: root
+        group: root
+        mode: 0644
+        content: |
+          # First, disable for all interfaces
+          net.ipv6.conf.all.disable_ipv6 = 1
+          # If using the sysctl method, the protocol must be disabled on all specific interfaces, as well
+          {% for iface in interfaces_reg.stdout_lines if iface is not match('lo') %}
+          net.ipv6.conf.{{ iface }}.disable_ipv6 = 1
+          {% endfor %}
+          # By default, we do not disable IPv6 on localhost, as it's important for multiple components
+          # If you want to disable it anyway, change the following value to 1
+          net.ipv6.conf.lo.disable_ipv6 = 0
+
+    - name: Step 2. Reload config
+      shell: /usr/bin/sysctl -p /etc/sysctl.d/ipv6.conf
+      args:
+        warn: false
+
+    - name: Step 3. Backup initial RAM disk image
+      shell: /usr/bin/cp -p /boot/initramfs-$(uname -r).img /boot/initramfs-$(uname -r)_$(date +%Y-%m-%d_%H%M%S).img
+      args:
+        warn: false
+
+    - name: Step 4. Rebuild initramfs
+      shell: /usr/bin/dracut -f -v
+      args:
+        warn: false
+
+    - name: Step 5. Verify IPv6 is disabled in initramfs
+      shell: /usr/bin/lsinitrd /boot/initramfs-$(uname -r).img  | grep 'etc/sysctl.d/ipv6.conf'
+      args:
+        warn: false
+      register: lsinitrd_reg
+
+    - name: Step 6. Check initramfs update
+      debug:
+        msg: "IPv6 setting in initramfs: {{ lsinitrd_reg.stdout }}"
+
+    - name: Step 7. Backup /etc/hosts
+      copy:
+        src: /etc/hosts
+        dest: /etc/hosts.disableipv6
+        remote_src: true
+
+    - name: Step 8. Comment out any IPv6 addresses found in /etc/hosts
+      shell: /usr/bin/sed -i 's/^[[:space:]]*::/#::/' /etc/hosts
+      args:
+        warn: false
