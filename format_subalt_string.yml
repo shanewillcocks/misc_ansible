@@ -1,0 +1,29 @@
+---
+# This converts subalt names list and ip address list in to a single string of the format
+# "DNS:<subalt>,DNS:<subalt>,...IP:<ipaddress>,IP:<ipaddress>,..."
+# There must be a cleaner way to do this
+- name: Format Subject Alt Names
+  block:
+    # Create a string with DNS: prefixes for dns names
+    - set_fact:
+        tmp_name_list: "{% for name in certs.subject_alt_names %} DNS:{{ name }} {% endfor %}"
+    # Convert string back to list
+    - set_fact:
+        name_list: "{{ tmp_name_list.split( ) }}"
+    # Create a string with IP: prefixes for ip addresses
+    - set_fact:
+        tmp_ip_list: "{% for ipaddr in certs.ip_addresses %} IP:{{ ipaddr }} {% endfor %}"
+    # Convert string back to list
+    - set_fact:
+        ip_list: "{{ tmp_ip_list.split( ) }}"
+    # Concatenate both lists
+    - set_fact:
+        tmp_san_list: "{{ ip_list + name_list }}"
+    # Convert to final string
+    - set_fact:
+        san_list: "{{ tmp_san_list | join(',') }}"
+- name: Debug subalt string
+  block:
+    - debug:
+        msg: "{{ san_list }}"
+  when: debug_mode|bool
