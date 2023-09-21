@@ -49,3 +49,15 @@
    file:
      path: /.autorelabel
      state: touch
+
+ - name: Reboot VM
+   reboot:
+   post_reboot_delay: 120
+
+ - name: Dump mountpounts for volume group
+   block:
+     - shell: mount | grep "{{ vol_grp }}"
+       register: mount_reg
+     - debug:
+         msg: "{{ mount_reg }}"
+ 
