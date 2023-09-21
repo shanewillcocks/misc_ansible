@@ -1,0 +1,32 @@
+---
+ - name: Copy contents of existing directories before mounting new filesystems on reboot
+   block:
+
+    - name: "Mounting {{ item.dev }} logical volume on /mnt"
+      shell: "/usr/bin/mount {{ item.dev }} /mnt"
+      args:
+        warn: false
+
+#    - name: "Copying contents of {{ item.mntpoint }} to /mnt"
+#      shell: /usr/bin/cp -pR "{{ item.mntpoint }}"* /mnt
+#      args:
+#        warn: false
+
+    - name: "Copying contents of {{ item.mntpoint }} to /mnt"
+      shell: "/usr/bin/rsync -av {{ item.mntpoint }} /mnt"
+      args:
+        warn: false
+#      when: not item.exclude_dir | bool
+#      register: copy_results
+
+#    - name: "Copying contents of {{ item.mntpoint }} to /mnt with exlude"
+#      shell: "/usr/bin/rsync -av {{ item.exclude_dirs }} {{ item.mntpoint }} /mnt"
+#      args:
+#        warn: false
+#      when: item.exclude_dir | bool
+#      register: copy_results
+
+    - name: "Unmount {{ item.dev }} logical volume"
+      shell: "/usr/bin/umount {{ item.dev }}"
+      args:
+        warn: false
