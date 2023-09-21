@@ -1,0 +1,56 @@
+---
+# Disk mappings
+# Just configure swap /tmp /var/log /var/tmp and /var/log/audit
+vol_grp: vg_system
+volumes:
+  - name: home_vol
+    dev: "/dev/mapper/{{ vol_grp }}-home_vol"
+    size: "4g"
+    mntpoint: /home/
+    fstype: xfs
+    exclude_dir: false
+  - name: opt_vol
+    dev: "/dev/mapper/{{ vol_grp }}-opt_vol"
+    size: "2g"
+    mntpoint: /opt/
+    fstype: xfs
+    exclude_dir: false
+  - name: var_vol
+    dev: "/dev/mapper/{{ vol_grp }}-var_vol"
+    size: "5g"
+    mntpoint: /var/
+    fstype: xfs
+    exclude_dir: true
+    exclude_dirs: --exclude=log --exclude=tmp
+  - name: swap_vol
+    dev: "/dev/mapper/{{ vol_grp }}-swap_vol"
+    size: "4g"
+    mntpoint: swap
+    fstype: swap
+    exclude_dir: false
+  - name: tmp_vol
+    dev: "/dev/mapper/{{ vol_grp }}-tmp_vol"
+    size: "2g"
+    mntpoint: /tmp/
+    fstype: xfs
+    exclude_dir: false
+  - name: var_log_vol
+    dev: "/dev/mapper/{{ vol_grp }}-var_log_vol"
+    size: "10g"
+    mntpoint: /var/log/
+    fstype: xfs
+    exclude_dir: true
+    exclude_dirs: --exclude=audit
+  - name: var_tmp_vol
+    dev: "/dev/mapper/{{ vol_grp }}-var_tmp_vol"
+    size: "2g"
+    mntpoint: /var/tmp/
+    fstype: xfs
+    exclude_dir: false
+  - name: var_audit_vol
+    dev: "/dev/mapper/{{ vol_grp }}-var_audit_vol"
+    size: "1g"
+    mntpoint: /var/log/audit/
+    fstype: xfs
+    perms: '0700'
+    exclude_dir: false
