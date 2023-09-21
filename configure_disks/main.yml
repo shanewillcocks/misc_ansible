@@ -39,8 +39,8 @@
    with_items:
      - "{{ volumes }}"
      
- - name: Copy to new filesystems
-   include_tasks: copy_to_filesystem.yml
+ - name: Copy to new volumes
+   include_tasks: copy_to_volume.yml
    when: item.name is not match('swap_vol')
    with_items:
      - "{{ volumes }}"
