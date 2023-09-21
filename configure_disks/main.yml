@@ -1,0 +1,51 @@
+---
+# All disk and partition related tasks go here
+ - name: Create logical volume group
+   lvg:
+     vg: "{{ vol_grp }}"
+     pvs: /dev/xvdf
+     pesize: 4M
+     state: present
+     
+ - name: Create logical volumes
+   lvol:
+     lv: "{{ item.name }}"
+     vg: "{{ vol_grp }}"
+     size: "{{ item.size }}"
+   with_items:
+     - "{{ volumes }}"
+     
+ - name: Format partitions
+   filesystem:
+     fstype: "{{ item.fstype }}"
+     dev: "{{ item.dev }}"
+   with_items:
+     - "{{ volumes }}"
+     
+ - name: Populate fstab
+   lineinfile:
+     path: /etc/fstab
+     line: "{{ item.dev }} {{ item.mntpoint }}                    {{ item.fstype }}     defaults        0 0"
+   with_items:
+     - "{{ volumes }}"
+     
+ - name: Verify mountpoints exist
+   file:
+     path: "{{ item.mntpoint }}"
+     state: directory
+     owner: root
+     group: root
+     mode: "{{ item.perms|default(omit) }}"
+   with_items:
+     - "{{ volumes }}"
+     
+ - name: Copy to new filesystems
+   include_tasks: copy_to_filesystem.yml
+   when: item.name is not match('swap_vol')
+   with_items:
+     - "{{ volumes }}"
+     
+ - name: Ensure SELinux contexts are restored on reboot
+   file:
+     path: /.autorelabel
+     state: touch
