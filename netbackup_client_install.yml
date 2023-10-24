@@ -1,0 +1,85 @@
+---
+# Download, install and configure NBU client
+- hosts: all
+  gather_facts: false
+  become: true
+  become_user: root
+  become_method: sudo
+  vars:
+    - base_dir: /usr/local/
+    - nbu_url: http://<SAT_SERVER>/pulp/repos/org_BNZ/Library/custom/Veritas_NetBackup/Veritas_NetBackup/Packages/v/
+    - nbu_cmd: /usr/openv/netbackup/bin/nbcertcmd
+    - nbu_server: <NBU_SERVER_FQDN>
+    - rpms:
+        - VRTSnbpck-8.1.2.0-1535425282.x86_64.rpm
+        - VRTSpbx-1.10.14.0-0.x86_64.rpm
+        - VRTSnbjre-8.1.2.0-1535425006.x86_64.rpm
+        - VRTSnbclt-8.1.2.0-1535425177.x86_64.rpm
+        - VRTSnbjava-8.1.2.0-1535425027.x86_64.rpm
+        - VRTSpddea-11.2.0.0-0070.x86_64.rpm
+        - VRTSnbcfg-8.1.2.0-1535425005.x86_64.rpm
+  tasks:
+    - name: Download NBU RPMs
+      get_url:
+        url: "{{ item }}"
+        dest: "{{ base_dir }}"
+        timeout: 30
+      with_items:
+        - "{{ nbu_url }}{{ rpms }}"
+
+    - name: Stop NBU agent service
+      service:
+        name: netbackup
+        state: stopped
+
+    - name: Install new RPMs
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - "{{ base_dir }}{{ rpms }}"
+
+    - name: Remove RPM files
+      file:
+        name: "{{ item }}"
+        state: absent
+      with_items:
+        - "{{ base_dir }}{{ rpms }}"
+
+    - name: Add NBU firewall rule
+      firewalld:
+        port: 1556/tcp
+        state: present
+        permanent: true
+        immediate: true
+
+    - name: Start NBU agent service
+      service:
+        name: netbackup
+        state: started
+
+    - name: Configure NBU agent
+      block:
+        - name: Get CA certificate from NBU server
+          shell: "{{ nbu_cmd }} -getCACertificate -server {{ nbu_server }}"
+          args:
+            warn: false
+          #register: get_ca_cert_reg
+
+        - name: Get agent host certificate from NBU server
+          shell: "{{ nbu_cmd }} -getCertificate -host {{ inventory_host }} -server {{ nbu_server }}"
+          args:
+            warn: false
+          #register: get_host_cert_reg
+
+        - name: Validate certificate
+          shell: "{{ nbu_cmd }} -hostselfcheck -server {{ nbu_server }}"
+          args:
+            warn: false
+          #register: validate_cert_reg
+
+        - name: Verify upgrade
+          shell: /usr/openv/netbackup/bin/goodies/support/versioninfo -f /usr/openv/netbackup/bin/bp
+          args:
+            warn: false
+          #register: verify_upgrade_reg
