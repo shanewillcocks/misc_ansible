@@ -1,0 +1,40 @@
+---
+# 1. Check the number of nameserver entries in /etc/resolv.conf
+# 2. Create a list of nameservers to remove if more than 3 found
+# 3. For each nameserver from #2 use lineinfile to remove the entry
+
+- hosts: all
+  become: true
+  become_method: sudo
+  gather_facts: false
+  tasks:
+    - name: "1. Count nameserver entries in /etc/resolv.conf"
+      block:
+        - ansible.builtin.shell: /usr/bin/grep -c '^nameserver' /etc/resolv.conf.bak
+          register: nameservers_reg
+        - ansible.builtin.set_fact:
+           nameserver_count: "{{ nameservers_reg.stdout }}"
+        - ansible.builtin.debug:
+            msg: "Found {{ nameserver_count }} nameservers in /etc/resolv.conf.bak"
+    - name: "2. Create a subset list of nameservers to remove"
+      block:
+        - ansible.builtin.set_fact:
+            entries_to_remove: "{{ nameserver_count|int - 3 }}"
+        - ansible.builtin.shell: "/usr/bin/grep '^nameserver' /etc/resolv.conf.bak | tail -{{ entries_to_remove|int }}"
+          register: remove_reg
+        - ansible.builtin.set_fact:
+            remove_list: "{{ remove_list|default([]) + [item] }}"
+          loop: "{{ remove_reg.stdout_lines }}"
+        - debug:
+            msg: "{{ remove_list }}"
+      when: nameserver_count|int > 3
+    - name: "3. Removing {{ nameserver_count }} extra nameservers"
+      ansible.builtin.lineinfile:
+        path: /etc/resolv.conf.bak
+        line: "{{ item }}"
+        state: absent
+      loop: "{{ remove_list }}"
+      when: nameserver_count|int > 3
+    - debug:
+        msg: "Nothing to do"
+      when: nameserver_count|int <= 3
