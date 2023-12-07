@@ -20,7 +20,7 @@
 
 - name: Add rsyslog conf file if missing
   copy:
-    src: 00_client.conf
+    src: splunk_client.conf
     dest: /etc/rsyslog.d/00_client.conf
     owner: root 
     mode: '0600'
@@ -32,7 +32,7 @@
 
 - name: Format message 
   set_fact:
-    message: "[ { action: \"{{ logger_action }}\", message_version: \"{{ version }}\", timestamp: \"{{ ansible_date_time.iso8601 }}\", type: \"{{ ansible_os_family }}\", os: \"{{ ansible_distribution_version }}\", state: \"{{ logger_state }}\", provider: \"{{ logger_provider }}\", hostname: \"{{ ansible_hostname }}\", ip_address: \"{{ ansible_default_ipv4['address'] | default(ansible_all_ipv4_addresses[0]) }}\" } ]"
+    message: "[ { action: \"{{ logger_action }}\", timestamp: \"{{ ansible_date_time.iso8601 }}\", type: \"{{ ansible_os_family }}\", os: \"{{ ansible_distribution_version }}\", state: \"{{ logger_state }}\", provider: \"{{ logger_provider }}\", hostname: \"{{ ansible_hostname }}\", ip_address: \"{{ ansible_default_ipv4['address'] | default(ansible_all_ipv4_addresses[0]) }}\" } ]"
   ignore_errors: true
 
 - name: Send message to Splunk
