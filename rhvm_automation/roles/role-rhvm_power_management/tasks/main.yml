@@ -1,0 +1,108 @@
+---
+- name: Authenticate to RHVM API
+  ansible.builtin.include_tasks: ovirt_auth.yml
+
+- redhat.rhv.ovirt_vm_info:
+    auth: "{{ ovirt_auth }}"
+    all_content: true
+    pattern: name="{{ target_vm }}"
+  register: ovirt_vm_info_reg
+
+- name: Dump VM info
+  ansible.builtin.debug:
+    var: ovirt_vm_info_reg
+  when: debug_mode|bool
+
+- ansible.builtin.set_fact:
+    current_vm_state: "{{ ovirt_vm_info_reg.ovirt_vms[0].status }}"
+
+- ansible.builtin.debug:
+    msg: "VM {{ target_vm }} is currently {{ current_vm_state }}"
+
+- name: Start VM if down
+  block:
+    - ansible.builtin.debug:
+        msg: "Starting VM..."
+    - redhat.rhv.ovirt_vm:
+        auth: "{{ ovirt_auth }}"
+        name: "{{ target_vm }}"
+        state: running
+    - ansible.builtin.debug:
+        msg: "Waiting for server to complete startup..."
+    - redhat.rhv.ovirt_vm_info:
+        auth: "{{ ovirt_auth }}"
+        all_content: true
+        pattern: name="{{ target_vm }}"
+      register: is_started_reg
+      until: is_started_reg.ovirt_vms[0].status is match("up")
+      retries: 10
+      delay: 30
+    - ansible.builtin.debug:
+         msg: "VM {{ target_vm }} is {{ is_started_reg.ovirt_vms[0].status }}"
+  when: current_vm_state is match("down") and target_vm_state == "running"
+
+- ansible.builtin.debug:
+    msg: "VM is already running, nothing to do"
+  when: current_vm_state is match("up") and target_vm_state == "running"
+
+- name: Stop VM if running
+  block:
+    - ansible.builtin.debug:
+        msg: "Stopping VM..."
+    - redhat.rhv.ovirt_vm:
+        auth: "{{ ovirt_auth }}"
+        name: "{{ target_vm }}"
+        state: stopped
+    - ansible.builtin.debug:
+        msg: "Waiting for server to complete shutdown..."
+    - redhat.rhv.ovirt_vm_info:
+        auth: "{{ ovirt_auth }}"
+        all_content: true
+        pattern: name="{{ target_vm }}"
+      register: is_stopped_reg
+      until: is_stopped_reg.ovirt_vms[0].status is match("down")
+      retries: 10
+      delay: 30
+    - ansible.builtin.debug:
+         msg: "VM {{ target_vm }} is {{ is_stopped_reg.ovirt_vms[0].status }}"
+  when: current_vm_state is match("up") and target_vm_state == "shutdown"
+
+- ansible.builtin.debug:
+    msg: "VM is already shutdown, nothing to do"
+  when: current_vm_state is match("down") and target_vm_state == "shutdown"
+
+- name: Reboot VM
+  block:
+    - ansible.builtin.debug:
+        msg: "Rebooting VM..."
+    - redhat.rhv.ovirt_vm:
+        auth: "{{ ovirt_auth }}"
+        name: "{{ target_vm }}"
+        state: reboot
+      when: current_vm_state is match("up")
+    # It takes a while for the reboot to start
+    - name: Wait for reboot to commence
+      ansible.builtin.pause:
+        seconds: 60
+      when: current_vm_state is match("up")
+    - redhat.rhv.ovirt_vm:
+        auth: "{{ ovirt_auth }}"
+        name: "{{ target_vm }}"
+        state: running
+      when: current_vm_state is match("down")
+    - ansible.builtin.debug:
+        msg: "Waiting for server to complete reboot..."
+    - redhat.rhv.ovirt_vm_info:
+        auth: "{{ ovirt_auth }}"
+        all_content: true
+        pattern: name="{{ target_vm }}"
+      register: is_rebooted_reg
+      until: is_rebooted_reg.ovirt_vms[0].status is match("up")
+      retries: 10
+      delay: 30
+    - ansible.builtin.debug:
+         msg: "VM {{ target_vm }} is {{ is_rebooted_reg.ovirt_vms[0].status }}"
+  when: target_vm_state == "rebooted"
+
+- name: Revoke authencation token
+  ansible.builtin.include_tasks: revoke_ovirt_auth.yml
