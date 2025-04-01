@@ -1,0 +1,36 @@
+---
+# Example of finding a delta between different date formats
+- hosts: all
+  become: false
+  gather_facts: true
+  vars:
+    # Date example returned by Venafi API
+    venafi_date: '2026-03-30T21:59:06.0000000Z'
+    venafi_date_format: '%Y-%m-%dT%H:%M:%S.0000000Z'
+    # ISO8601 date format from Ansible facts
+    ansible_date_format: '%Y-%m-%dT%H:%M:%SZ'
+    # Date example returned by AWS CLI
+    aws_ts: '2024-08-04T20:57:18.263000+00:00'
+    aws_date_format: '%Y-%m-%dT%H:%M:%S.%f+00:00'
+    # RHEL system format
+    system_date_format: '%Y-%m-%d'
+  tasks:
+    - name: Delta example for Ansible and Venafi datestamps
+      block:
+        - ansible.builtin.debug:
+            msg: "System datestamp is: {{ ansible_date_time.iso8601 }}"
+        - ansible.builtin.set_fact:
+            delta: "{{ (venafi_date | to_datetime(venafi_date_format) - ansible_date_time.iso8601 | to_datetime(ansible_date_format)).total_seconds() }}"
+        - ansible.builtin.set_fact:
+            months_to_expiry: "{{ (( delta | int ) / 60 / 60 / 24  / 30 ) | int }}"
+        - ansible.builtin.debug:
+            msg: "Delta between timestamps is: {{ delta|int }} seconds or approximately {{ months_to_expiry }} months"
+
+    - name: Delta example for AWS and RHEL system datestamps
+      block:
+        - ansible.builtin.shell: /usr/bin/date '+%Y-%m-%d'
+          register: system_ts
+        - ansible.builtin.set_fact:
+            delta: "{{ (system_ts.stdout | to_datetime(system_date_format) - aws_ts | to_datetime(aws_date_format)).total_seconds() }}"
+        - ansible.builtin.debug:
+            msg: "Delta between now and AWS timestamp is: {{ delta | int }} seconds or approximately {{ (( delta | int ) / 60 / 60 / 24 ) | round( 2, 'floor' ) }} days"
