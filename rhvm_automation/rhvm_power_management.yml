@@ -1,7 +1,0 @@
----
-# Requires authentication with AAP Red Hat Virtualization Credential
-- hosts: all
-  become: false
-  gather_facts: false
-  roles:
-    - role-rhvm_power_management
