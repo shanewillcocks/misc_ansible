@@ -1,0 +1,90 @@
+---
+- name: Authenticate to RHVM API
+  ansible.builtin.include_tasks: ovirt_auth.yml
+
+- name: Log AAP survey inputs
+  ansible.builtin.debug:
+    msg: "Adding {{ cpu_increase }} CPU to VM {{ target_vm }}"
+
+- name: Collect VM info from RHVM
+  redhat.rhv.ovirt_vm_info:
+    auth: "{{ ovirt_auth }}"
+    pattern: name="{{ target_vm }}"
+  register: ovirt_vm_info_reg
+
+- name: Dump VM info
+  ansible.builtin.debug:
+    var: ovirt_vm_info_reg
+  when: debug_mode | bool
+
+- ansible.builtin.fail:
+    msg: "VM {{ target_vm }} not found at {{ rhvm_url }}"
+  when: ovirt_vm_info_reg.ovirt_vms == []
+
+- name: Set facts for current CPU config
+  block:
+    - ansible.builtin.set_fact:
+        vm_cpu_cores: "{{ ovirt_vm_info_reg.ovirt_vms[0].cpu.topology.cores }}"
+    - ansible.builtin.set_fact:
+        vm_cpu_sockets: "{{ ovirt_vm_info_reg.ovirt_vms[0].cpu.topology.sockets }}"
+    - ansible.builtin.set_fact:
+        vm_vcpu: "{{ ( vm_cpu_cores | int ) * ( vm_cpu_sockets | int ) }}"
+    - ansible.builtin.set_fact:
+        vm_state: "{{ ovirt_vm_info_reg.ovirt_vms[0].status }}"
+
+- ansible.builtin.debug:
+    msg: "Current vCPU count is: {{ vm_vcpu }}: {{ vm_cpu_cores }} cores x {{ vm_cpu_sockets }} sockets"
+
+- name: Set fact for new CPU allocation
+  block:
+    - ansible.builtin.set_fact:
+        new_vcpu_count: "{{ ( vm_vcpu | int ) + ( cpu_increase | int ) }}"
+      when: ( vm_cpu_sockets | int == 1 ) or ( cpu_increase | int == 1 )
+    - ansible.builtin.set_fact:
+        new_vcpu_count: "{{ ( vm_vcpu | int ) + ( cpu_increase | int / 2 ) }}"
+      when: ( vm_cpu_sockets | int == 2 ) and ( ( cpu_increase | int == 2 ) or ( cpu_increase | int == 4 ) )
+    - ansible.builtin.set_fact:
+        new_cpu_count: "{{ ( vm_vcpu | int ) + ( cpu_increase | int / 4 }}"
+      when: ( vm_cpu_sockets | int == 4 ) and ( cpu_increase | int == 4 )
+
+- ansible.builtin.debug:
+    msg: "New vCPU allocation will be {{ new_vcpu_count }}"
+
+- name: Stop VM if running
+  ansible.builtin.include_tasks: stop_vm.yml  
+  when: vm_state is match("up")
+
+# Need to reset the power status flag as the above task is skipped if the VM is already down
+- name: Reset power status flag
+  redhat.rhv.ovirt_vm_info:
+    auth: "{{ ovirt_auth }}"
+    pattern: name="{{ target_vm }}"
+    all_content: true
+  register: vm_power_state_reg
+
+- name: Allocate CPU cores to VM
+  redhat.rhv.ovirt_vm:
+    auth: "{{ ovirt_auth }}"
+    name: "{{ target_vm }}"
+    cpu_cores: "{{ new_vcpu_count | int }}"
+  register: ovirt_vm_reg
+
+- ansible.builtin.debug:
+    var: ovirt_vm_reg
+  when: debug_mode | bool
+
+- name: Restart VM
+  ansible.builtin.include_tasks: start_vm.yml
+  when: vm_power_state_reg.ovirt_vms[0].status is match("down") 
+
+- name: Verify memory allocation
+  block:
+    - redhat.rhv.ovirt_vm_info:
+        auth: "{{ ovirt_auth }}"
+        pattern: name="{{ target_vm }}"
+      register: ovirt_vm_cpu_check_reg
+    - ansible.builtin.debug:
+        msg: "vCPU allocation to {{ target_vm }} now {{ ( ovirt_vm_cpu_check_reg.ovirt_vms[0].cpu.topology.cores | int ) * ( ovirt_vm_cpu_check_reg.ovirt_vms[0].cpu.topology.sockets | int ) }}"
+
+- name: Revoke authentication token
+  ansible.builtin.include_tasks: revoke_ovirt_auth.yml
