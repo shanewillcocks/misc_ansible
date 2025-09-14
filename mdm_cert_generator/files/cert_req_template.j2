@@ -1,21 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
-  <soapenv:Body>
-    <ns1:loginCallParms xmlns:ns1="urn:entrust.com:ig:adminV9:wsdl">
-      <parms><adminId>{{ mdm_id }}</adminId>
-      <password>{{ mdm_pwd }}</password>
-      <response xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="1"/>
-      <parms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="1"/>
-        <delegateId xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="1"/>
-        <clientCert xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="1"/>
-      </parms>
-    </ns1:loginCallParms>
-  </soapenv:Body>
-</soapenv:Envelope>
-[p781144@lrlwks03 files]$
-[p781144@lrlwks03 files]$
-[p781144@lrlwks03 files]$
-[p781144@lrlwks03 files]$ cat cert_req_template.j2
 <?xml version="1.0" encoding="utf-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
   <soapenv:Body>
