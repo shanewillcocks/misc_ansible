@@ -1,0 +1,29 @@
+---
+# Change default password hasing algorithm from MD5 to SHA256
+# extra_vars: expire=[yes|no] - forces password change on next login
+- hosts: all
+  become: yes
+  become_user: root
+  become_method: sudo
+  vars: 
+    expire_pwd: "{{ expire | default(false) }}"
+  tasks:
+    - name: Get current hashing algorithm
+      ansible.builtin.shell: /usr/sbin/authconfig  --test | grep hashing
+      args:
+        warn: false
+      register: current_hash_reg
+    - name: Update MD5 to SHA256
+      block:
+        - anisble.builtin.shell: /usr/sbin/authconfig --passalgo=sha256 --update
+          arg:
+            warn: false
+          register: md5_udpate_reg
+        - anisble.builtin.debug: 
+            msg: "Hashing algorithm updated successfully"
+          when: md5_update_reg.rc == 0
+        - name: Expire all existing non-root passwords
+          ansible.builtin.shell: for u in $(awk -F: '{if ( $1 != "root" && $2 ~ /^!?[[:alnum:]\.\/\$]/ ) print $1}' /etc/shadow); do chage -d0 $u; done
+          register: expire_passwords_reg
+          when: expire_pwd|bool
+      when: current_hash_reg is search('algorithm is md5')
