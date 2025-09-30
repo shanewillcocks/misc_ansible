@@ -1,0 +1,30 @@
+---
+# Update puppet base files from MD5 to SHA256 for password hashing
+- hosts: all
+  become: yes
+  become_user: root
+  become_method: sudo
+  vars:
+    base_dir: "/etc/puppet/environments"
+  tasks:
+    - name: Modify login.defs
+      block:
+        - name: Find login.defs templates
+          ansible.builtin.find: 
+            paths: "{{ base_dir }}"
+            recurse: yes
+            file_type: file
+            patterns: 'login.defs'
+          register: login_defs_reg
+        - name: Disable MD5
+          ansible.builtin.lineinfile:
+            backup: yes
+            path: "{{ item }}"
+            regexp: '^MD5_CRYPT_ENAB yes$'
+            line: 'MD5_CRYPT_ENAB no'        
+          loop: "{{ login_defs_reg.files }}"
+        - name: Enable SHA256
+          ansible.builtin.lineinfile:
+            path: "{{ item }}"
+            line: "ENCRYPT_METHOD SHA256"
+          loop: "{{ login_defs_reg.files }}"
